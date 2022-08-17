@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Skyscrapers</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel=stylesheet href="css/base.css"/>
+</head>
+<body>
+
+<script src="js/Three.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/KeyboardState.js"></script>
+<script src="js/THREEx.FullScreen.js"></script>
+<script src="js/THREEx.WindowResize.js"></script>
+<script src="js/OrbitControls.js"></script>
+
+
+<div id="ThreeJS" style="position: absolute; left:0px; top:0px"></div>
+<script>
+
+/*
+	Three.js Skyscrapers3D Game
+	Author: Lucas Trentini Bordin
+
+	Based on examples by Lee Stemkoski and mrdoob
+
+*/
+
+// MAIN
+
+// global variables
+var container, scene, camera, renderer, controls, stats, camControls;
+var keyboard = new KeyboardState();
+var clock = new THREE.Clock();
+
+// custom global variables
+var mesh;
+
+init();
+animate();
+
+// FUNCTIONS 		
+function init() 
+{
+	// SCENE
+	scene = new THREE.Scene();
+
+	// CAMERA
+	var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+	var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 2000;
+	camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+	scene.add(camera);
+	camera.position.set(10,10,10);
+	camera.lookAt(scene.position);
+
+	// RENDERER
+	if ( Detector.webgl )
+		renderer = new THREE.WebGLRenderer( {antialias:true} );
+	else
+		renderer = new THREE.CanvasRenderer(); 
+	renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+	container = document.getElementById( 'ThreeJS' );
+	container.appendChild( renderer.domElement );
+
+	// CAMERA CONTROLS
+	camControls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	// EVENTS
+	THREEx.WindowResize(renderer, camera);
+	THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) });
+	
+	// BASIC LIGHT
+	var light = new THREE.PointLight(0xffffff);
+	light.position.set(60,70,60);
+	light.intensity = 0.8
+	scene.add(light);
+
+	// ENABLE SHADOWS
+	renderer.shadowMapEnabled = true;
+	renderer.shadowMapType = THREE.PCFSoftShadowMap;
+
+	// BG COLOR
+	renderer.setClearColorHex( 0xeeeeee, 1 );
+
+
+	// SPOTLIGHT
+	var spotlight = new THREE.SpotLight(0xffffff);
+	spotlight.position.set(-60,70,-60);
+	spotlight.shadowCameraVisible = false;
+	spotlight.shadowDarkness = 0.42;
+	spotlight.intensity = 1;
+	spotlight.castShadow = true;
+	scene.add(spotlight);
+
+	this.cubeGeo = new THREE.CubeGeometry(1,1,1);
+	
+	// TEXTURES
+	var squareTexture     = new THREE.ImageUtils.loadTexture("images/square-thick.png");
+	var squareTextureX    = new THREE.ImageUtils.loadTexture("images/square-X.png");
+	var squareTextureO    = new THREE.ImageUtils.loadTexture("images/square-O.png");
+	var squareTexturePlus = new THREE.ImageUtils.loadTexture("images/square-plus.png");
+	var squareTexture1    = new THREE.ImageUtils.loadTexture("images/square-1.png");
+	var squareTexture2    = new THREE.ImageUtils.loadTexture("images/square-2.png");
+	var squareTexture3    = new THREE.ImageUtils.loadTexture("images/square-3.png");
+	var squareTexture4    = new THREE.ImageUtils.loadTexture("images/square-4.png");
+	var squareTexture5    = new THREE.ImageUtils.loadTexture("images/square-5.png");
+	var squareTexture6    = new THREE.ImageUtils.loadTexture("images/square-6.png");
+		
+	this.offset = [ 
+		new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0),
+		new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0),
+		new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
+		
+	this.colors = [ new THREE.Color(0x66FFFF), new THREE.Color(0xff0000), new THREE.Color(0xff8800), new THREE.Color(0xffff00), new THREE.Color(0x00cc00),
+	                new THREE.Color(0x0000ff), new THREE.Color(0x8800ff), new THREE.Color(0x804000), new THREE.Color(0x222222), new THREE.Color(0xFF66FF), , new THREE.Color(0xFFFFFF) ];	
+
+	this.materials = { "solid":[], "select":[], "one":[], "two":[], "three":[], "four":[], "five":[], "six":[] };
+	for (var i = 0; i < colors.length; i++)
+	{
+		materials["solid"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture,     color: colors[i]} );
+		materials["select"][i]  = new THREE.MeshLambertMaterial( {map: squareTextureX,    color: colors[i], transparent:true, opacity:0.75} );
+
+		materials["one"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture1,     color: colors[i]} );
+		materials["two"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture2,     color: colors[i]} );
+		materials["three"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture3,     color: colors[i]} );
+		materials["four"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture4,     color: colors[i]} );
+		materials["five"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture5,     color: colors[i]} );
+		materials["six"][i]   = new THREE.MeshLambertMaterial( {map: squareTexture6,     color: colors[i]} );
+
+	}
+
+
+	this.brush = new THREE.Mesh( cubeGeo.clone(), materials["select"][1] );	
+	brush.ignore = true;    // ignored by raycaster
+	brush.visible = false;  
+	brush.colorIndex = 1;
+
+	scene.add(brush);
+
+	this.cubeNames = [];
+	
+	this.projector = new THREE.Projector();
+	this.mouse2D = new THREE.Vector3( 0, 0, 0.5 );
+	
+	// when the mouse moves, call the given function
+	document.addEventListener( 'mousemove', mouseMove,  false );
+	document.addEventListener( 'mousedown', mouseClick, false );
+
+	// BOARD GENERATION
+
+	for (let x = 0; x<8; x++){
+		for (let z = 0; z<8; z++){
+			
+			var cube = new THREE.Mesh( cubeGeo );
+			cube.colorIndex = 10;
+			cube.receiveShadow = true;
+			if(z == 0){
+				switch(x){
+					case 1:
+						cube.material = materials["five"][ cube.colorIndex ];
+						break;
+					case 2:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 3:
+						cube.material = materials["four"][ cube.colorIndex ];
+						break;
+					case 4:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					case 5:
+						cube.material = materials["one"][ cube.colorIndex ];
+						break;
+					case 6:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					default:
+						cube.material = materials["solid"][ cube.colorIndex ];	
+						break;
+				}
+			} else if(z == 7){
+				switch(x){
+					case 1:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 2:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 3:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 4:
+						cube.material = materials["one"][ cube.colorIndex ];
+						break;
+					case 5:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 6:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					default:
+						cube.material = materials["solid"][ cube.colorIndex ];	
+						break;
+				}
+			} else if(x == 0){
+				switch(z){
+					case 1:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					case 2:
+						cube.material = materials["five"][ cube.colorIndex ];
+						break;
+					case 3:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 4:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 5:
+						cube.material = materials["one"][ cube.colorIndex ];
+						break;
+					case 6:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					default:
+						cube.material = materials["solid"][ cube.colorIndex ];	
+						break;
+				}
+			} else if(x == 7){
+				switch(z){
+					case 1:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 2:
+						cube.material = materials["one"][ cube.colorIndex ];
+						break;
+					case 3:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					case 4:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					case 5:
+						cube.material = materials["two"][ cube.colorIndex ];
+						break;
+					case 6:
+						cube.material = materials["three"][ cube.colorIndex ];
+						break;
+					default:
+						cube.material = materials["solid"][ cube.colorIndex ];	
+						break;
+				}
+			} else {
+			cube.material = materials["solid"][ cube.colorIndex ];
+			}
+
+			cube.position.x = x;
+			cube.position.y = 0;
+			cube.position.z = z;
+			cube.indestructible = true;
+			cube.name = "X" + x + "Y" + '0' + "Z" + z;
+			
+			scene.add( cube );
+			cubeNames.push( cube.name );
+		}
+	}
+}
+
+function mouseMove(event) 
+{
+	// update the mouse variable
+	mouse2D.x =   ( event.clientX / window.innerWidth  ) * 2 - 1;
+	mouse2D.y = - ( event.clientY / window.innerHeight ) * 2 + 1;	
+}
+
+function mouseClick(event) 
+{	
+	brushAction(event);
+}
+
+function brushAction(event)
+{
+	//add cube
+	if (event.button == 0){
+		if(brush.position.x<=6 && brush.position.y<=6 && brush.position.z<=6
+		&& brush.position.x>=1 && brush.position.y>=1 && brush.position.z>=1){
+
+
+			var cube = new THREE.Mesh( cubeGeo );
+
+			switch(brush.position.y){
+				case 1:
+					cube.material = materials["one"][ brush.colorIndex ];
+					break;
+				case 2:
+					cube.material = materials["two"][ brush.colorIndex ];
+					break;
+				case 3:
+					cube.material = materials["three"][ brush.colorIndex ];
+					break;
+				case 4: 
+					cube.material = materials["four"][ brush.colorIndex ];
+					break;
+				case 5:
+					cube.material = materials["five"][ brush.colorIndex ];
+					break;
+				case 6:
+					cube.material = materials["six"][ brush.colorIndex ];
+					break;
+				default:
+					cube.material = materials["solid"][ brush.colorIndex ];
+
+			}
+			cube.castShadow = true;
+			cube.position = brush.position.clone();
+			cube.name = brush.addName;
+			cube.colorIndex = brush.colorIndex;
+			scene.add( cube );
+			cubeNames.push( cube.name );
+		}
+	}
+
+	//delete cube
+	if (event.button == 2)
+	{
+		var cube = scene.getObjectByName(brush.targetName);
+		if(cube && !cube.indestructible){
+			scene.remove(cube);		
+			var index = cubeNames.indexOf(brush.targetName); 
+			if ( index != -1 ) cubeNames.splice( index, 1 );	
+		}
+	}
+}
+
+function animate() 
+{
+    requestAnimationFrame(animate);
+	render();		
+	update();
+}
+
+
+function update()
+{
+	var delta = clock.getDelta();
+	var moveDistance = 5 * delta; 			// 5 units per second
+	var rotateAngle = Math.PI / 4 * delta;	// pi/4 radians (45 degrees) per second
+	
+	keyboard.update();
+	
+	// voxel placing controls
+	
+	// when digit is pressed, change brush color
+	for (var i = 0; i < 10; i++)
+	if (keyboard.down(i.toString())) 
+		brush.colorIndex = i;
+	
+	// raycasting
+	
+	var raycaster = projector.pickingRay( mouse2D.clone(), camera );
+	var intersectionList = [];
+	intersectionList = raycaster.intersectObjects( scene.children );
+	var result = null;
+	for ( var i = 0; i < intersectionList.length; i++ ) 
+	{
+		if ( (result == null) && (intersectionList[i].object instanceof THREE.Mesh) && !(intersectionList[i].object.ignore) ) 
+			result = intersectionList[i];
+	}
+
+	// restore appearance of potential delete/(re)color target cube
+	var targetCube = scene.getObjectByName( brush.targetName );
+	if ( targetCube )
+		targetCube.material = targetCube.materialBackup;
+	brush.targetName = null;
+		
+	if(result){	
+		//select target cube on hover
+			
+		var faceIndex = Math.floor(result.faceIndex / 2);
+		brush.position = result.object.position.clone().add( offset[faceIndex] );
+	
+		brush.addName = "X" + Math.floor(brush.position.x) + "Y" + Math.floor(brush.position.y) 
+			+ "Z" + Math.floor(brush.position.z);
+			
+		var intPosition = new THREE.Vector3( Math.floor(result.object.position.x), 
+		Math.floor(result.object.position.y), Math.floor(result.object.position.z) );
+		brush.targetName = "X" + intPosition.x + "Y" + intPosition.y + "Z" + intPosition.z;	
+		var targetCube = scene.getObjectByName( brush.targetName );
+
+		targetCube.materialBackup = targetCube.material;
+		targetCube.material = materials["select"][ targetCube.colorIndex ];
+
+	}
+	
+	camControls.update();
+}
+
+function render() 
+{
+	renderer.render( scene, camera );
+}
+
+</script>
+
+</body>
+</html>
