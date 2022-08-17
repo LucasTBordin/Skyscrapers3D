@@ -28,5 +28,5 @@ terminada. Isso fica a cargo do jogador (tal qual no jogo original, que é jogad
 A solução final do jogo está disponível na imagem a seguir: https://imgur.com/HWP4qw5
 
 
-A página do jogo está presente no arquivo Skyscrapers3D.html.
+A página do jogo está presente no arquivo index.html.
 Para a implementação, foram utilizados como base exemplos de Lee Stemkoski no GitHub.
